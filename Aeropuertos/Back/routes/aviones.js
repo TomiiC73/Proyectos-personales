@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const Libro = require('../models/libro');
 const { buscarTipoAvionPorId } = require('../services/functions.services');
 const { Op } = require('sequelize');
 const Avion = require('../models/avion');
@@ -108,3 +107,76 @@ router.post('/aviones', async (req, res) => {
 });
 
 // Endpoint para actualizar un avion
+router.put('/aviones/:id', async (req, res) => {
+    const id = req.params.id;
+    const { nombre, costoMantenimientoPorHora, fechaCreacion, cantidadPasajeros, idTipoAvion } = req.body;
+
+    if (isNaN(id) || parseInt(id) < 1) {
+        return res.status(400).send('El ID debe ser un número mayor o igual a 1');
+    }
+
+    // Validaciones similares a las del método POST
+    if (!nombre || !costoMantenimientoPorHora < 0 || !fechaCreacion || cantidadPasajeros < 0 || idTipoAvion < 0 || 
+        isNaN(parseInt(idTipoAvion))) {
+            return res.status(400).send('Datos de entrada invalidos')
+    };
+
+    const fechaCreacionDate = new Date(fechaCreacion);
+    const fechaActual = new Date();
+
+    if (isNaN(fechaCreacionDate.getTime())) {
+        return res.status(400).send('La fecha de creacion no es válida');
+    };
+
+    if (fechaCreacionDate > fechaActual) {
+        return res.status(400).send('La fecha de creacion no puede ser mayor a la fecha actual');
+    };
+
+    const tipoAvion = await buscarTipoAvionPorId(idTipoAvion)
+    if (!tipoAvion) {
+        return res.status(400).send('El tipo de avion referenciado no existe');
+    };
+
+    try {
+        const [updated] = await Avion.update({
+            nombre, 
+            costoMantenimientoPorHora,
+            fechaCreacion,
+            cantidadPasajeros,
+            idTipoAvion
+        }, {
+            where: {
+                id: id
+            }
+        });
+
+        if (updated) {
+            const avionActualizado = await Avion.findOne({ where: { id: id } });
+            res.json(avionActualizado);
+        } else {
+            res.status(404).json({ error: 'Avion no encontrado' });
+        }
+    } catch (error) {
+        res.status(500).send('Error al actualizar el avion');
+    }
+});
+
+// Endpoint para eliminar un avion
+router.delete('/aviones/:id', async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id) || id < 1) {
+        return res.status(400).send('El ID debe ser un número mayor o igual a 1');
+    };
+
+    try {
+        const avionEliminado = await Avion.destroy({ where: { id } });
+        if (avionEliminado) {
+            res.status(200).send();
+        } else {
+            res.status(404).json({ error: 'El avion no existe' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Error al eliminar el avion' });
+    };
+});
+
